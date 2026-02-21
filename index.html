@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consulta AFP - SBS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; min-height: 100vh; padding: 2rem; }
+    .container { max-width: 500px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 2rem; color: #333; }
+    .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #555; }
+    input, select { width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; }
+    input:focus, select:focus { outline: none; border-color: #0066cc; }
+    button { width: 100%; padding: 1rem; background: #0066cc; color: white; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; margin-top: 1rem; }
+    button:hover { background: #0052a3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .result { margin-top: 2rem; padding: 1.5rem; border-radius: 8px; }
+    .result.success { background: #e8f5e9; border: 1px solid #4caf50; }
+    .result.error { background: #ffebee; border: 1px solid #f44336; }
+    .result h3 { margin-bottom: 1rem; }
+    .result-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
+    .result-row:last-child { border-bottom: none; }
+    .result-label { color: #666; }
+    .result-value { font-weight: 600; }
+    .loading { text-align: center; padding: 2rem; }
+    .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #0066cc; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Consulta AFP - SBS</h1>
+    <div class="card">
+      <form id="consultaForm">
+        <div class="form-group">
+          <label>Tipo de Documento</label>
+          <select id="tipoDocumento">
+            <option value="DNI">DNI</option>
+            <option value="CE">Carné Extranjería</option>
+            <option value="PAS">Pasaporte</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Número de Documento</label>
+          <input type="text" id="numeroDocumento" required maxlength="15">
+        </div>
+        <div class="form-group">
+          <label>Apellido Paterno</label>
+          <input type="text" id="apellidoPaterno" required>
+        </div>
+        <div class="form-group">
+          <label>Apellido Materno</label>
+          <input type="text" id="apellidoMaterno" required>
+        </div>
+        <div class="form-group">
+          <label>Primer Nombre</label>
+          <input type="text" id="primerNombre" required>
+        </div>
+        <div class="form-group">
+          <label>Segundo Nombre (opcional)</label>
+          <input type="text" id="segundoNombre">
+        </div>
+        <button type="submit" id="btnConsultar">Consultar</button>
+      </form>
+      <div id="resultado"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:4004';
+
+    document.getElementById('consultaForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const btn = document.getElementById('btnConsultar');
+      const resultado = document.getElementById('resultado');
+
+      btn.disabled = true;
+      btn.textContent = 'Consultando...';
+      resultado.innerHTML = '<div class="loading"><div class="spinner"></div>Consultando SBS...</div>';
+
+      const data = {
+        tipoDocumento: document.getElementById('tipoDocumento').value,
+        numeroDocumento: document.getElementById('numeroDocumento').value,
+        apellidoPaterno: document.getElementById('apellidoPaterno').value,
+        apellidoMaterno: document.getElementById('apellidoMaterno').value,
+        primerNombre: document.getElementById('primerNombre').value,
+        segundoNombre: document.getElementById('segundoNombre').value || undefined
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/sbs/consulta-afp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const json = await res.json();
+
+        if (json.afiliado) {
+          resultado.innerHTML = `
+            <div class="result success">
+              <h3>✓ Afiliado al SPP</h3>
+              <div class="result-row"><span class="result-label">AFP:</span><span class="result-value">${json.afp}</span></div>
+              <div class="result-row"><span class="result-label">CUSPP:</span><span class="result-value">${json.cuspp}</span></div>
+              <div class="result-row"><span class="result-label">Fecha Afiliación:</span><span class="result-value">${json.fechaAfiliacion}</span></div>
+              <div class="result-row"><span class="result-label">Situación:</span><span class="result-value">${json.situacion}</span></div>
+              <div class="result-row"><span class="result-label">Último Aporte:</span><span class="result-value">${json.ultimoAporte || 'N/A'}</span></div>
+            </div>
+          `;
+        } else {
+          resultado.innerHTML = `
+            <div class="result error">
+              <h3>✗ No Afiliado</h3>
+              <p>${json.mensaje || 'No se encontró información'}</p>
+            </div>
+          `;
+        }
+      } catch (err) {
+        resultado.innerHTML = `
+          <div class="result error">
+            <h3>Error</h3>
+            <p>${err.message}</p>
+          </div>
+        `;
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Consultar';
+    });
+  </script>
+</body>
+</html>
